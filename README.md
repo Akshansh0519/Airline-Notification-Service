@@ -1,205 +1,109 @@
-# Base Project 1
+# Notification & Email Microservice (`Notification-Service-Flights`)
 
-Node.js and Express starter project with Sequelize, MySQL, structured layers, and a small REST API for airplanes.
+This is the **Notification & Email Service** microservice running on **Port 3002**, responsible for listening to asynchronous booking confirmation events from **RabbitMQ** (`Notification-Queue`) and dispatching transactional confirmation emails via **Nodemailer / Gmail**.
 
-## What this project does
+---
 
-This project is built as a layered REST API. The application receives HTTP requests in Express, passes them through routes and controllers, applies business logic in services, and writes to MySQL through Sequelize models and repositories.
-
-The current API surface includes:
-
-- `GET /api/v1/info` to verify the API is alive
-- `POST /api/v1/airplanes` to create an airplane record
-
-## Production Flow
-
-The request path in this project is:
+## Architecture & Workflow
 
 ```mermaid
 flowchart LR
-  A[Client / Postman / Frontend] --> B[Express app src/index.js]
-  B --> C[/api routes/]
-  C --> D[/v1 routes/]
-  D --> E[Controller]
-  E --> F[Service]
-  F --> G[Repository]
-  G --> H[Sequelize Model]
-  H --> I[(MySQL)]
+  Booking[Booking Service Port 4000] -- Publishes JSON to --> RabbitMQ[(RabbitMQ: Notification-Queue)]
+  RabbitMQ -- channel.consume() --> Consumer[connectToRabbitMQ() Consumer in src/index.js]
+  Consumer -- JSON Payload --> EmailService[EmailService.sendEmail()]
+  EmailService -- Nodemailer SMTP --> Gmail[Gmail / SMTP Server]
+  Gmail --> UserInbox[User Email Inbox]
 ```
 
-### How the flow works
+### How the Asynchronous Email Flow Works
+1. When a user successfully confirms payment via `POST http://localhost:4000/api/v1/bookings/payments` on the **Booking Service**, the transaction commits and pushes a JSON notification message into `Notification-Queue`:
+   ```json
+   {
+     "recepientEmail": "user@gmail.com",
+     "subject": "Flight booked",
+     "text": "Booking successfully done for the booking 11",
+     "status": "booked"
+   }
+   ```
+2. Upon booting up (`app.listen`), `src/index.js` connects to RabbitMQ (`amqp://localhost`) via `amqplib` and asserts the queue (`Notification-Queue`).
+3. The queue consumer parses incoming payloads, extracts `recepientEmail` (or falls back to the default configured email if none is specified), and calls `EmailService.sendEmail("airlinenoti@gmail.com", recipient, subject, text)`.
+4. Once Nodemailer confirms delivery to Gmail (`Booking successfully done for the booking <id>`), the consumer acknowledges (`channel.ack(data)`) the message to remove it from RabbitMQ.
 
-1. `src/index.js` creates the Express app, enables JSON parsing, mounts the API router, and starts the server.
-2. `src/routes/index.js` mounts versioned routes under `/api/v1`.
-3. `src/routes/v1/index.js` wires feature routes such as airplanes and the info endpoint.
-4. Controllers validate and shape the request/response.
-5. Services contain business logic and coordinate repository calls.
-6. Repositories wrap model access and keep database logic isolated.
-7. Sequelize models define the schema and map to MySQL tables.
+---
 
 ## Folder Structure
 
 ```text
 src/
-  index.js                # App entrypoint
-  config/                 # Server, logger, and Sequelize configuration
-  controllers/            # Request handlers
-  routes/                 # Route registration and versioning
-  services/               # Business logic layer
-  repositories/           # Database access layer
-  models/                 # Sequelize models
+  index.js                # App entrypoint & RabbitMQ queue consumer (connectToRabbitMQ)
+  config/                 # Server settings, logger, and Nodemailer transport configuration
+  controllers/            # Request handlers (ticket management APIs)
+  routes/                 # API route registration (/api/v1/tickets)
+  services/               # Email dispatch and ticket business logic (EmailService)
+  repositories/           # Database access layer for ticket logs
+  models/                 # Sequelize models (Ticket)
   migrations/             # Sequelize migrations
-  seeders/                # Sequelize seeders
-  utils/                  # Shared helpers
 ```
 
-## Important Files
+---
 
-- [src/index.js](src/index.js) starts the server and mounts `/api`.
-- [src/routes/index.js](src/routes/index.js) mounts versioned routes.
-- [src/routes/v1/index.js](src/routes/v1/index.js) connects airplane routes and the info endpoint.
-- [src/controllers/airplane-controller.js](src/controllers/airplane-controller.js) handles airplane creation requests.
-- [src/services/airplane-service.js](src/services/airplane-service.js) contains the airplane business logic.
-- [src/repositories/airplane-repository.js](src/repositories/airplane-repository.js) wraps the Sequelize model.
-- [src/models/airplane.js](src/models/airplane.js) defines the airplane schema.
-- [src/config/sequelize-config.js](src/config/sequelize-config.js) loads MySQL settings from environment variables.
+## Environment Configuration (`.env`)
 
-## Configuration
-
-Create a `.env` file in the project root:
+Create a `.env` file in the project root (`C:\Users\AKSHANSH RANJAN\Desktop\Code\Notification-Service-Flights\.env`):
 
 ```env
-PORT=3000
+PORT=3002
 DB_USER=root
 DB_PASSWORD=your_mysql_password
-DB_NAME=flights_development
+DB_NAME=notification_development
 DB_HOST=127.0.0.1
+GMAIL_EMAIL=your_sender_gmail@gmail.com
+GMAIL_PASSWORD=your_gmail_app_password_16_chars
+RABBITMQ_URL=amqp://localhost
+RABBITMQ_QUEUE_NAME=Notification-Queue
 ```
 
-The app uses `dotenv` to read these values on startup.
+> **Important**: `GMAIL_PASSWORD` must be a 16-character [Google App Password](https://support.google.com/accounts/answer/185833), not your regular Gmail account login password.
 
-### Database config behavior
+---
 
-- `DB_USER` sets the MySQL user
-- `DB_PASSWORD` sets the MySQL password
-- `DB_NAME` sets the development database name
-- `DB_HOST` sets the MySQL host
+## Setup & Running Instructions
 
-If `DB_PASSWORD` is missing, Sequelize will try to connect without a password and MySQL will reject it.
-
-## Setup
-
-1. Install dependencies:
-
+### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-2. Create the database:
-
+### 2. Database Migrations
 ```bash
 npx sequelize db:create
-```
-
-3. Run migrations if needed:
-
-```bash
 npx sequelize db:migrate
 ```
 
-4. Start the server:
-
+### 3. Start Service
+Ensure your local RabbitMQ server (`amqp://localhost`) is running, then start the service:
 ```bash
 npm start
 ```
-
-## Sequelize CLI Commands
-
-The repo includes a `.sequelizerc` file so Sequelize CLI uses the `src` folders instead of the default root folders.
-
-Useful commands:
-
-```bash
-npx sequelize db:create
-npx sequelize db:migrate
-npx sequelize db:seed:all
-npx sequelize model:generate --name Airplane --attributes modelNumber:string,capacity:integer
+*You should see the following logs confirming exact startup:*
+```text
+Server is running on port 3002
+Ready to send emails
+Connected to RabbitMQ
 ```
 
-## API Endpoints
+---
 
-### Health check
+## Testing Email Delivery via RabbitMQ
 
-`GET /api/v1/info`
-
-Response example:
-
-```json
-{
-  "success": true,
-  "name": "Base Project",
-  "description": "This is a base project for building RESTful APIs using Node.js and Express.",
-  "msg": "api is alive",
-  "error": {},
-  "data": {}
+When the **Booking Service** (`Port 4000`) completes `POST /api/v1/bookings/payments`, `Notification-Service-Flights` will immediately output:
+```text
+Received message from RabbitMQ: {
+  recepientEmail: 'akshanshranjan007@gmail.com',
+  subject: 'Flight booked',
+  text: 'Booking successfully done for the booking 11',
+  status: 'booked'
 }
+Notification email sent successfully to akshanshranjan007@gmail.com
 ```
-
-### Create an airplane
-
-`POST /api/v1/airplanes`
-
-Request body:
-
-```json
-{
-  "modelNumber": "airbus-320",
-  "capacity": 200
-}
-```
-
-Expected result:
-
-- Controller receives the request
-- Service forwards the data
-- Repository writes to the `Airplane` model
-- Sequelize stores the row in MySQL
-
-## How airplane creation works
-
-1. The client sends a `POST` request to `/api/v1/airplanes`.
-2. `AirplaneController.createAirplane` reads the body.
-3. `AirplaneService.createAirplane` receives the payload.
-4. `AirplaneRepository.create` calls Sequelize `model.create()`.
-5. Sequelize inserts the row into MySQL.
-6. The controller returns the created record as JSON.
-
-## Troubleshooting
-
-### `Access denied for user 'root'@'localhost' (using password: NO)`
-
-This means the app started without a `DB_PASSWORD` value.
-
-Fix:
-
-```env
-DB_PASSWORD=your_mysql_password
-```
-
-### `mysql` command not found
-
-Use the full path to `mysql.exe` or add MySQL `bin` to PATH.
-
-### `No database selected`
-
-Run:
-
-```sql
-USE flights_development;
-```
-
-## Notes
-
-- Logs are written through Winston.
-- The project uses MySQL through Sequelize.
-- The codebase is already organized for future CRUD expansion.
+And an email with the exact subject **`Flight booked`** will arrive in the recipient's inbox.

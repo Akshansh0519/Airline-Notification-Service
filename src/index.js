@@ -1,3 +1,4 @@
+const amqplib = require('amqplib');
 const { ServerConfig  , Logger } = require('./config');
 
 const express = require('express');
@@ -10,6 +11,7 @@ app.use(express.urlencoded({extended : true}));
 
 app.use('/api',apiRoutes);
 
+let channel;
 async function connectToRabbitMQ(){
     try{
         const connection = await amqplib.connect(ServerConfig.RABBITMQ_URL);
@@ -17,15 +19,23 @@ async function connectToRabbitMQ(){
         await channel.assertQueue(ServerConfig.RABBITMQ_QUEUE_NAME);
         console.log('Connected to RabbitMQ');
         channel.consume(ServerConfig.RABBITMQ_QUEUE_NAME, async (data) => {
-            const object = JSON.parse(data.content.toString());
-            await EmailService.sendEmail("airlineNotification@gmail.com",object.recepientEmail,object.subject,object.text);
-            channel.ack(data); // Acknowledging the message after processing as its a TCP connection and we need to acknowledge the message after processing it so that it can be removed from the queue and not be re-delivered.
+            if (!data) return;
+            try {
+                const object = JSON.parse(data.content.toString());
+                console.log('Received message from RabbitMQ:', object);
+                const recipient = object.recepientEmail || object.recipientEmail || 'akshanshranjan007@gmail.com';
+                await EmailService.sendEmail("airlinenoti@gmail.com", recipient, object.subject, object.text);
+                console.log(`Notification email sent successfully to ${recipient}`);
+                channel.ack(data);
+            } catch (err) {
+                console.error('Error processing email from RabbitMQ queue:', err);
+                channel.ack(data); // ack to prevent infinite redelivery loops if email fails
+            }
         });
         return channel;
     }
     catch(error){
         console.error('Error occurred while connecting to RabbitMQ:', error);
-        throw error;
     }
 }
 
@@ -38,7 +48,7 @@ app.listen(ServerConfig.PORT,async ()=>{
     }).catch((error)=>{
         console.error('Error occurred while verifying email sender:', error);
     });
-    //Logger.info(`Server is running on port ${ServerConfig.PORT}`,{});/*ctrl+s to save and check the logs*/ 
+    await connectToRabbitMQ();
 })
 
 
