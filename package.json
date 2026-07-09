@@ -1,0 +1,24 @@
+{
+  "name": "base_project_1",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "npx nodemon src/index.js"
+  },
+  "keywords": [],
+  "author": "Akshansh Ranjan",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "http-status-codes": "^2.3.0",
+    "mysql2": "^3.22.5",
+    "nodemon": "^3.1.14",
+    "sequelize": "^3.30.0",
+    "winston": "^3.19.0"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.5"
+  }
+}
