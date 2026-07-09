@@ -2,19 +2,30 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('Airplanes', {
+    await queryInterface.createTable('Tickets', {
       id: {
         allowNull: false,
         autoIncrement: true,
         primaryKey: true,
         type: Sequelize.INTEGER
       },
-      modelNumber: {
+      subject: {
         type: Sequelize.STRING,
-        allowNull: false,
+        allowNull: false
       },
-      capacity: {
-        type: Sequelize.INTEGER
+      content: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      recepientEmail: {
+        type: Sequelize.STRING,
+        allowNull: false
+      },
+      status: {
+        type: Sequelize.ENUM,
+        values: ['PENDING', 'SUCCESS', 'FAILED'],
+        defaultValue: 'PENDING',
+        allowNull: false
       },
       createdAt: {
         allowNull: false,
@@ -27,6 +38,6 @@ module.exports = {
     });
   },
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable('Airplanes');
+    await queryInterface.dropTable('Tickets');
   }
 };

@@ -2,3 +2,31 @@ node_modules/
 .env
 combined.log
 src/config/config.json
+
+mysql -u root -p
+
+
+# To set up and use a database in a Sequelize project, the workflow is usually:
+
+# 1. Configure the connection in Sequelize, usually in sequelize-config.js, with the DB name, host, username, password, and dialect.
+# 2. Put real credentials in .env instead of hardcoding them.
+# 3. Make sure Sequelize CLI is pointing at the right config and folders through .sequelizerc.
+# 4. Install the MySQL driver Sequelize needs. In this repo, that means `mysql` for the older CLI path, plus a working MySQL server account/auth setup.
+# 5. Create the database with:
+# ```bash
+# npx sequelize db:create
+# ```
+# 6. Create the tables with migrations:
+# ```bash
+# npx sequelize db:migrate
+# ```
+# 7. Start the app only after the DB and tables exist.
+
+# In this repo specifically, the important gotchas were:
+# - The active config is sequelize-config.js, not config.json.
+# - The database name must match your env values, like `DB_NAME=notification_development` in .env.
+# - `db:create` makes the database.
+# - `db:migrate` creates the tables.
+# - If MySQL auth is `caching_sha2_password`, older Sequelize/MySQL setups may fail until the MySQL account or driver is adjusted.
+
+# If you want, I can also turn this into a short project setup checklist you can reuse for every new Sequelize app.
