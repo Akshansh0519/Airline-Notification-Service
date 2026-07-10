@@ -4,14 +4,18 @@ const ticketRepository = new TicketRepository();
 
 const { MAILER } = require('../config');
 
-async function sendEmail(mailFrom,mailTo,subject,text){
+async function sendEmail(mailFrom, mailTo, subject, text, html){
     try{
-        const response = await MAILER.sendMail({
+        const mailOptions = {
             from: mailFrom,
             to: mailTo,
             subject: subject,
             text: text
-        });
+        };
+        if (html) {
+            mailOptions.html = html;
+        }
+        const response = await MAILER.sendMail(mailOptions);
         return response;
     }
     catch(error){

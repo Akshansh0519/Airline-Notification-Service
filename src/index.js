@@ -24,7 +24,7 @@ async function connectToRabbitMQ(){
                 const object = JSON.parse(data.content.toString());
                 console.log('Received message from RabbitMQ:', object);
                 const recipient = object.recepientEmail || object.recipientEmail || 'akshanshranjan007@gmail.com';
-                await EmailService.sendEmail("airlinenoti@gmail.com", recipient, object.subject, object.text);
+                await EmailService.sendEmail("airlinenoti@gmail.com", recipient, object.subject, object.text, object.html);
                 console.log(`Notification email sent successfully to ${recipient}`);
                 channel.ack(data);
             } catch (err) {
