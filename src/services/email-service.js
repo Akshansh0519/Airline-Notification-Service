@@ -5,22 +5,31 @@ const ticketRepository = new TicketRepository();
 const { MAILER } = require('../config');
 
 async function sendEmail(mailFrom, mailTo, subject, text, html){
-    try{
-        const mailOptions = {
-            from: mailFrom,
-            to: mailTo,
-            subject: subject,
-            text: text
-        };
-        if (html) {
-            mailOptions.html = html;
+    const mailOptions = {
+        from: mailFrom,
+        to: mailTo,
+        subject: subject,
+        text: text
+    };
+    if (html) {
+        mailOptions.html = html;
+    }
+
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+            const response = await MAILER.sendMail(mailOptions);
+            console.log(`Email delivered on attempt ${attempt} to ${mailTo}`);
+            return response;
+        } catch (error) {
+            lastError = error;
+            console.warn(`Attempt ${attempt} to send email failed: ${error.message}. Retrying...`);
+            if (attempt < 3) {
+                await new Promise(res => setTimeout(res, 2000 * attempt));
+            }
         }
-        const response = await MAILER.sendMail(mailOptions);
-        return response;
     }
-    catch(error){
-        throw error;
-    }
+    throw lastError;
 }
 
 async function createTicket(data){
