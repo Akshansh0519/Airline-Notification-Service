@@ -64,11 +64,20 @@ async function connectToRabbitMQ(){
                 console.log('Received message from RabbitMQ:', object);
                 const recipient = object.recepientEmail || object.recipientEmail || 'akshanshranjan007@gmail.com';
                 const senderEmail = ServerConfig.GMAIL_EMAIL || 'akshanshranjan0519@gmail.com';
-                await EmailService.sendEmail(senderEmail, recipient, object.subject, object.text, object.html);
+                
+                // 12s safety timeout so RabbitMQ never gets stuck in Unacked: 1
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Email dispatch timed out after 12 seconds')), 12000)
+                );
+                await Promise.race([
+                    EmailService.sendEmail(senderEmail, recipient, object.subject, object.text, object.html),
+                    timeoutPromise
+                ]);
+
                 console.log(`Notification email sent successfully to ${recipient}`);
                 channel.ack(data);
             } catch (err) {
-                console.error('Error processing email from RabbitMQ queue:', err);
+                console.error('Error or timeout processing email from RabbitMQ queue:', err.message || err);
                 channel.ack(data); // ack to prevent infinite redelivery loops if email fails
             }
         });
