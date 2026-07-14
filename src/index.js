@@ -29,12 +29,34 @@ app.get('/ping-cors', (req, res) => {
 app.use('/api',apiRoutes);
 
 let channel;
+let connection;
 async function connectToRabbitMQ(){
     try{
-        const connection = await amqplib.connect(ServerConfig.RABBITMQ_URL);
+        connection = await amqplib.connect(ServerConfig.RABBITMQ_URL);
+        
+        connection.on('error', (err) => {
+            console.error('RabbitMQ connection error in Notification Service:', err.message);
+            channel = null;
+        });
+        connection.on('close', () => {
+            console.warn('RabbitMQ connection closed by broker. Reconnecting in 5s...');
+            channel = null;
+            setTimeout(connectToRabbitMQ, 5000);
+        });
+
         channel = await connection.createChannel();
-        await channel.assertQueue(ServerConfig.RABBITMQ_QUEUE_NAME);
-        console.log('Connected to RabbitMQ');
+        channel.on('error', (err) => {
+            console.error('RabbitMQ channel error:', err.message);
+            channel = null;
+        });
+        channel.on('close', () => {
+            console.warn('RabbitMQ channel closed. Reconnecting in 5s...');
+            channel = null;
+            setTimeout(connectToRabbitMQ, 5000);
+        });
+
+        await channel.assertQueue(ServerConfig.RABBITMQ_QUEUE_NAME, { durable: true });
+        console.log(`Connected to RabbitMQ & Consuming from [${ServerConfig.RABBITMQ_QUEUE_NAME}]`);
         channel.consume(ServerConfig.RABBITMQ_QUEUE_NAME, async (data) => {
             if (!data) return;
             try {
@@ -53,7 +75,8 @@ async function connectToRabbitMQ(){
         return channel;
     }
     catch(error){
-        console.error('Error occurred while connecting to RabbitMQ:', error);
+        console.error('Error occurred while connecting to RabbitMQ:', error.message);
+        setTimeout(connectToRabbitMQ, 5000);
     }
 }
 
