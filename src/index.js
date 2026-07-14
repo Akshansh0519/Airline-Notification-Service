@@ -93,11 +93,15 @@ async function connectToRabbitMQ(){
 app.listen(ServerConfig.PORT,async ()=>{
     console.log(`Server is running on port ${ServerConfig.PORT}`);
     
-    mailsender.verify().then(()=>{
-        console.log('Ready to send emails');
-    }).catch((error)=>{
-        console.error('Error occurred while verifying email sender:', error);
-    });
+    if (process.env.RESEND_API_KEY || process.env.BREVO_API_KEY) {
+        console.log('Ready to send emails via Port 443 HTTPS API (Resend/Brevo enabled)');
+    } else {
+        mailsender.verify().then(()=>{
+            console.log('Ready to send emails via Nodemailer');
+        }).catch((error)=>{
+            console.warn('Notice: Nodemailer SMTP verification timed out (Render Free Tier blocks outbound SMTP). Please set RESEND_API_KEY or BREVO_API_KEY to send via Port 443 HTTPS.');
+        });
+    }
     await connectToRabbitMQ();
 })
 
